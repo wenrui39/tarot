@@ -275,6 +275,60 @@ SPREADS = {
     }
 }
 
+# --- Reading Styles Definition ---
+READING_STYLES = {
+    "mystical": {
+        "name_en": "Mystical Oracle",
+        "name_cn": "神秘学风格",
+        "desc_en": "Ceremonial, archaic language emphasizing fate.",
+        "desc_cn": "充满仪式感，用词古老，强调命运。",
+        "system_prompt_en": """You are an Ancient Mystic Oracle. Your voice is ceremonial, archaic, and profound. 
+            Do not speak like a modern AI. Speak of threads of fate, cosmic energies, and the weave of destiny.
+            Use Shakespearean/Mystical style. Reference the stars, the void, and ancient mysteries.""",
+        "system_prompt_cn": """你是一位古老的神秘神谕。你的声音充满仪式感，古老而深邃。
+            不要像现代AI那样说话。要谈论命运的丝线、宇宙的能量和命运的编织。
+            使用古典神秘的风格。引用星辰、虚空和古老的奥秘。"""
+    },
+    "psychological": {
+        "name_en": "Psychological Counselor",
+        "name_cn": "心理咨询风格",
+        "desc_en": "Jungian approach, tarot as projection of the unconscious.",
+        "desc_cn": "荣格心理学派，通过塔罗投射潜意识，提供建议而非迷信。",
+        "system_prompt_en": """You are a Jungian psychologist who uses tarot as a tool for exploring the unconscious mind.
+            Approach each reading as a projection of the querent's inner psyche. Reference archetypes, shadow work, 
+            and the collective unconscious. Provide practical psychological insights and constructive advice.
+            Be empathetic, professional, and focus on personal growth rather than superstition.""",
+        "system_prompt_cn": """你是一位使用塔罗牌作为探索潜意识工具的荣格心理学家。
+            将每次解读视为问卜者内心世界的投射。引用原型、阴影工作和集体潜意识。
+            提供实用的心理学见解和建设性建议。
+            保持同理心、专业性，专注于个人成长而非迷信。"""
+    },
+    "direct": {
+        "name_en": "Direct & Sharp",
+        "name_cn": "直接犀利风格",
+        "desc_en": "No fluff, straight to the point results.",
+        "desc_cn": "不废话，直接给结果。",
+        "system_prompt_en": """You are a no-nonsense tarot reader. Cut the mystical fluff and get straight to the point.
+            Give direct, actionable interpretations. Be blunt but helpful. 
+            Format your response clearly with bullet points. No flowery language.""",
+        "system_prompt_cn": """你是一位不废话的塔罗解读者。省去神秘的废话，直奔主题。
+            给出直接、可操作的解读。直言不讳但有帮助。
+            用要点清晰地格式化你的回答。不要花里胡哨的语言。"""
+    },
+    "funny": {
+        "name_en": "Comedy Style",
+        "name_cn": "搞笑风格",
+        "desc_en": "Humorous, entertaining readings with jokes.",
+        "desc_cn": "幽默诙谐，用段子解读命运。",
+        "system_prompt_en": """You are a stand-up comedian who happens to read tarot. Make the reading hilarious and entertaining.
+            Use puns, jokes, and witty observations. Roast the cards a little. 
+            Still give actual interpretations, but make them funny. Think: fortune teller meets comedy club.""",
+        "system_prompt_cn": """你是一位恰好会读塔罗牌的脱口秀演员。让解读既搞笑又有趣。
+            使用双关语、笑话和机智的观察。适当吐槽一下牌面。
+            仍然给出真实的解读，但要幽默。想象：算命先生遇上脱口秀现场。"""
+    }
+}
+
 # --- Sidebar & Setup ---
 
 with st.sidebar:
@@ -284,8 +338,21 @@ with st.sidebar:
     lang = st.radio("Language | 语言", ["English", "Chinese"], index=0)
     is_cn = lang == "Chinese"
     
-    # Model
-    model = st.selectbox("AI Model", ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768"], index=0)
+    st.markdown("---")
+    
+    # Reading Style Selection
+    st.subheader("🎭 Reading Style | 解读风格")
+    style_options = list(READING_STYLES.keys())
+    style_labels = [f"{READING_STYLES[s]['name_cn']}" if is_cn else f"{READING_STYLES[s]['name_en']}" for s in style_options]
+    
+    selected_style_idx = st.radio(
+        "Choose your reading style | 选择解读风格",
+        range(len(style_options)),
+        format_func=lambda x: style_labels[x],
+        index=0
+    )
+    selected_style = style_options[selected_style_idx]
+    st.caption(READING_STYLES[selected_style]["desc_cn"] if is_cn else READING_STYLES[selected_style]["desc_en"])
     
     st.markdown("---")
     
@@ -297,6 +364,19 @@ with st.sidebar:
     )
     spread_info = SPREADS[spread_name]
     st.info(spread_info["desc_cn"] if is_cn else spread_info["desc_en"])
+    
+    st.markdown("---")
+    
+    # Hidden Model Selection
+    with st.expander("⚙️ Advanced | 高级设置", expanded=False):
+        model = st.selectbox(
+            "AI Model", 
+            ["llama-3.1-8b-instant", "llama3-70b-8192", "mixtral-8x7b-32768", "gemma2-9b-it"],
+            index=0
+        )
+        st.caption("Change AI model for different response styles." if not is_cn else "更换AI模型以获得不同的回答风格。")
+    
+    st.markdown("---")
     
     if st.button("Reset / New Reading | 重置"):
         for key in ['stage', 'drawn_cards', 'interpretation', 'question']:
@@ -423,11 +503,16 @@ elif st.session_state.stage == 'drawn':
                 card_details.append(f"- Position: {dc.position_name_en}, Card: {name}, Orientation: {orientation}")
             
             cards_text = "\n".join(card_details)
-            lang_instruction = "Respond in CHINESE (Traditional/Mystical style)." if is_cn else "Respond in ENGLISH (Shakespearean/Mystical style)."
+            
+            # Get style-specific prompts
+            style_config = READING_STYLES[selected_style]
+            base_style_prompt = style_config["system_prompt_cn"] if is_cn else style_config["system_prompt_en"]
+            lang_instruction = "Respond entirely in CHINESE." if is_cn else "Respond entirely in ENGLISH."
             
             system_prompt = f"""
-            You are an Ancient Mystic Oracle. Your voice is ceremonial, archaic, and profound. 
-            Do not speak like a modern AI. Speak of threads of fate, cosmic energies, and the weave of destiny.
+            {base_style_prompt}
+            
+            Additional Instructions:
             1. Analyze the cards drawn in the specific spread positions.
             2. Synthesize a comprehensive meaning linking the cards together.
             3. Respect strict Reversal meanings (Reversed = Internalized, blocked, or opposite energy).
